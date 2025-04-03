@@ -16,10 +16,14 @@ def search_author(author):
     print(response.json())
 
 def search_title(title):
-    a = 1
+    url = f"https://openlibrary.org/search.json?title={title}&sort=new"
+    response = requests.get(url)
+    print(response.json())
 
 def check_webcam():
     result = scan_isbn_from_webcam()
     return result
-#search_isbn("9781526610140")
-#search_author("Tolkien")
+
+if __name__ == "main":
+    search_isbn("9781526610140")
+    search_author("Tolkien")
