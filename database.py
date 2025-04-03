@@ -1,6 +1,4 @@
 import sqlite3
-import openlibrary
-from lookup import search_isbn
 
 class BookDatabase:
     def __init__(self, db_name):
@@ -85,19 +83,6 @@ class BookDatabase:
         else:
             return 0, 0, 0
         
-    def lookup_book(self, title=None, author=None, isbn=None):
-        """Search for a book by title, author, or ISBN using the Open Library API"""
-        if isbn:
-            # Search by ISBN
-            result = search_isbn(str(isbn))
-        elif author:
-            result = 1
-        elif title:
-            result = 1        
-        else:
-            return None
-
-        return result
         
 user_db = BookDatabase('user1.db')
 
@@ -111,6 +96,3 @@ user_db = BookDatabase('user1.db')
 # Verify deletion
 #books = user_db.get_all_books()
 #print(books)  # Should not include 'The Catcher in the Rye' anymore
-
-res = user_db.lookup_book(isbn = 9781526610140)
-print(res)
