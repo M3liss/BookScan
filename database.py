@@ -10,7 +10,7 @@ class BookDatabase:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS books
                   (id INTEGER PRIMARY KEY, 
-                  isbn INT,
+                  isbn TEXT,
                   title TEXT, 
                   author TEXT, 
                   genre TEXT,
@@ -31,10 +31,10 @@ class BookDatabase:
         conn.commit()
         conn.close()
 
-    def book_exists(self, title):
+    def book_exists(self, isbn):
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM books WHERE title = ?', (title,))
+        c.execute('SELECT COUNT(*) FROM books WHERE isbn = ?', (isbn,))
         result = c.fetchone()
         conn.close()
         return result[0] > 0
@@ -55,12 +55,10 @@ class BookDatabase:
         conn.close()
         return books
 
-    def update_book_status(self, book_id, scanned=None, read=None):
+    def update_book_status(self, book_id, read=None):
         """Update the scanned or read status of a book."""
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
-        if scanned is not None:
-            c.execute('UPDATE books SET scanned = ? WHERE id = ?', (scanned, book_id))
         if read is not None:
             c.execute('UPDATE books SET read = ? WHERE id = ?', (read, book_id))
         conn.commit()
@@ -83,7 +81,7 @@ class BookDatabase:
             return ratio
         return 0
         
-if __name__ == "main":
+if __name__ == "__main__":
     user_db = BookDatabase('user1.db')
 
     #isbn, title, author, genre, favourite, read
