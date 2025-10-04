@@ -22,8 +22,11 @@ def search_title(title):
 
 def check_webcam():
     result = scan_isbn_from_webcam()
+    result = ""
     return result
 
-if __name__ == "main":
+if __name__ == "__main__":
     search_isbn("9781526610140")
     search_author("Tolkien")
+    search_title("The Hobbit")
+    check_webcam()

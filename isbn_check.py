@@ -55,4 +55,3 @@ def scan_isbn_from_webcam():
     cv2.destroyAllWindows()
     return isbn
 
-#scan_isbn_from_webcam()
