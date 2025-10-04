@@ -1,0 +1,14 @@
+# NumPy compatible with OpenCV <4.12 and pyzbar
+numpy=2.0
+
+# OpenCV version that works with NumPy 1.x
+opencv-python<4.12
+
+# Barcode scanning
+pyzbar>=0.1.9
+
+# Image handling
+Pillow>=9.0.0
+
+# HTTP requests for OpenLibrary API
+requests>=2.28.0
