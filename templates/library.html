@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="main">
+<div class="dashboard-container">
+    <div class="dashboard-card" style="position: relative;">
+        <h2>Your Library</h2>
+
+      <p id="addGeneralError" style="color:red; display:none;"></p>
+      {% set read_count = books|selectattr('read')|list|length %}
+      {% set goal_pct = ((read_count / reading_goal) * 100) if reading_goal else 0 %}
+      {% set goal_pct = 100 if goal_pct > 100 else goal_pct %}
+      <div class="progress-section">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill goal" style="width: {{ goal_pct }}%;"></div>
+        </div>
+      </div>
+
+      <hr class="dashboard-divider">
+
+      <!-- Add Book Popup (overlay) -->
+      <div id="addBookPopup" class="popup-overlay">
+        <div class="form-card popup-box">
+          <h3>Add a Book</h3>
+
+          <p id="addBookError" style="color:red; display:none;"></p>
+          <label>Title:</label>
+          <input id="bookTitle" type="text">
+
+          <label>Author:</label>
+          <input id="bookAuthor" type="text">
+          <div class="checkboxes" style="margin-top:10px; display:flex; align-items:center; gap:15px;">
+            <label>
+              <input type="checkbox" id="bookFavourite"> Favourite
+            </label>
+            <label>
+              <input type="checkbox" id="bookRead"> Read
+            </label>
+            <label>
+              <input type="checkbox" id="currentRead"> Currently Reading
+            </label>
+
+
+          </div>
+          <div class="popup-buttons">
+            <button onclick="submitBook()">Add Book</button>
+            <button onclick="closeAddBookPopup()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-bar" style="display:flex; gap:10px; margin:15px 0; width:100%; max-width:500px;">
+        <select id="searchField" style="padding:8px; border-radius:6px; border:1px solid #ccc;">
+          <option value="all">All</option>
+          <option value="title">Title</option>
+          <option value="author">Author</option>
+          <option value="genre">Genre</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search your library…"
+               style="flex:1; padding:8px; border-radius:6px; border:1px solid #ccc;">
+      </div>
+      <p id="noResultsMsg" style="display:none; color:#777;">No books match your search.</p>
+
+      <div class="toolbar add-toolbar visible">
+        <button onclick="location.href='/add_webcam'">📷 Add by Webcam</button>
+        <button onclick="openAddBookPopup()">✏️ Add by Typing</button>
+        <button onclick="openQrPopup()">📱 Scan on phone</button>
+      </div>
+      <!-- Selection Toolbar -->
+      <div class="toolbar selection-toolbar hidden">
+        <button onclick="deleteSelected()">🗑️ Delete Selected</button>
+        <button onclick="markFavorite()">⭐ Mark Favorite</button>
+        <button onclick="markRead()">📚 Mark Read</button>
+        <button onclick="exitSelectionMode()">❌ Cancel</button>
+      </div>
+
+
+      <!-- Book Grid -->
+<div class="books-grid" id="booksGrid">
+  {% for book in books %}
+  <div class="book-card"
+       data-book-id="{{ book.id }}"
+       data-book="{{ book.title }}"
+       data-title="{{ book.title|default('', true) }}"
+       data-author="{{ book.author|default('', true) }}"
+       data-genre="{{ book.genre|default('', true) }}">
+    <button class="book-btn">
+      <strong>{{ book.title }}</strong>
+      {% if book.favourite %}<span class="favourite-icon">⭐</span>{% endif %}
+      {% if book.read %}<span class="read-icon">✔️</span>{% endif %}
+    </button>
+    <span class="delete-icon">❌</span>
+  </div>
+  {% endfor %}
+</div>
+      <hr class="dashboard-divider">
+
+  <h3>Press and hold on a book to manage your library.</h3>
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+let selectionMode = false;
+let pressTimer;
+let selectedBooks = new Set();
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('expanded');
+}
+
+function enableSelectionMode() {
+  selectionMode = true;
+  document.querySelector('.add-toolbar').classList.add('hidden');
+  document.querySelector('.add-toolbar').classList.remove('visible');
+  document.querySelector('.selection-toolbar').classList.remove('hidden');
+  document.querySelector('.selection-toolbar').classList.add('visible');
+}
+
+function exitSelectionMode() {
+  selectionMode = false;
+  selectedBooks.clear();
+  document.querySelectorAll('.book-card.selected').forEach(card => card.classList.remove('selected'));
+  document.querySelector('.selection-toolbar').classList.add('hidden');
+  document.querySelector('.selection-toolbar').classList.remove('visible');
+  document.querySelector('.add-toolbar').classList.remove('hidden');
+  document.querySelector('.add-toolbar').classList.add('visible');
+}
+
+async function deleteSelected() {
+    const errorEl = document.getElementById("addGeneralError");
+    if (selectedBooks.size === 0) return;
+
+    const booksArray = Array.from(selectedBooks);
+
+    try {
+        const response = await fetch("/delete_book", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ books: booksArray })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            booksArray.forEach(bookID => {
+                const card = document.querySelector(`.book-card[data-book-id="${bookID}"]`);
+                if (card) card.remove();
+            });
+            selectedBooks.clear();
+            exitSelectionMode();
+        } else {
+            errorEl.textContent = "Failed to add book. Please try again.";
+            errorEl.style.display = "block";
+        }
+    } catch (err) {
+        errorEl.textContent = err;
+        errorEl.style.display = "block";
+    }
+}
+
+async function markFavorite() {
+    if (selectedBooks.size === 0) return;
+
+    const booksArray = Array.from(selectedBooks);
+    const errorEl = document.getElementById("addGeneralError");
+    errorEl.style.display = "none";
+
+    try {
+        const response = await fetch("/mark_favourite", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ books: booksArray })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            // Update UI: toggle favourite icon for each book
+            booksArray.forEach(bookID => {
+                const card = document.querySelector(`.book-card[data-book-id="${bookID}"] .book-btn`);
+                if (!card) return;
+                let icon = card.querySelector(".favourite-icon");
+                if (icon) {
+                    icon.remove(); // remove if it exists
+                } else {
+                    const span = document.createElement("span");
+                    span.classList.add("favourite-icon");
+                    span.textContent = "⭐";
+                    card.appendChild(span);
+                }
+            });
+
+            selectedBooks.clear();
+            exitSelectionMode();
+        } else {
+            errorEl.textContent = result.error || "Failed to mark favorite";
+            errorEl.style.display = "block";
+        }
+    } catch (err) {
+        errorEl.textContent = "Failed to mark favorite. Please try again.";
+        errorEl.style.display = "block";
+    }
+}
+
+async function markRead() {
+    if (selectedBooks.size === 0) return;
+
+    const booksArray = Array.from(selectedBooks);
+    const errorEl = document.getElementById("addGeneralError");
+    errorEl.style.display = "none";
+
+    try {
+        const response = await fetch("/mark_read", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ books: booksArray })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            // Update UI: toggle read icon for each book
+            booksArray.forEach(bookID => {
+                const card = document.querySelector(`.book-card[data-book-id="${bookID}"] .book-btn`);
+                if (!card) return;
+                let icon = card.querySelector(".read-icon");
+                if (icon) {
+                    icon.remove();
+                } else {
+                    const span = document.createElement("span");
+                    span.classList.add("read-icon");
+                    span.textContent = "✔️";
+                    card.appendChild(span);
+                }
+            });
+
+            selectedBooks.clear();
+            exitSelectionMode();
+        } else {
+            errorEl.textContent = result.error || "Failed to mark read";
+            errorEl.style.display = "block";
+        }
+    } catch (err) {
+        errorEl.textContent = "Failed to mark read. Please try again.";
+        errorEl.style.display = "block";
+    }
+}
+
+function filterBooks() {
+  const query = document.getElementById("searchInput").value.trim().toLowerCase();
+  const field = document.getElementById("searchField").value;
+  const cards = document.querySelectorAll(".book-card");
+  let anyVisible = false;
+
+  cards.forEach(card => {
+    const title = (card.dataset.title || "").toLowerCase();
+    const author = (card.dataset.author || "").toLowerCase();
+    const genre = (card.dataset.genre || "").toLowerCase();
+
+    let matches;
+    if (!query) {
+      matches = true;
+    } else if (field === "title") {
+      matches = title.includes(query);
+    } else if (field === "author") {
+      matches = author.includes(query);
+    } else if (field === "genre") {
+      matches = genre.includes(query);
+    } else {
+      matches = title.includes(query) || author.includes(query) || genre.includes(query);
+    }
+
+    card.classList.toggle("hidden", !matches);
+    if (matches) anyVisible = true;
+  });
+
+  document.getElementById("noResultsMsg").style.display = anyVisible ? "none" : "block";
+}
+
+document.getElementById("searchInput").addEventListener("input", filterBooks);
+document.getElementById("searchField").addEventListener("change", filterBooks);
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.book-card').forEach(card => {
+    const bookID = card.dataset.bookId;
+    const deleteIcon = card.querySelector('.delete-icon');
+
+    // Long press to enable selection mode
+    card.addEventListener('mousedown', () => {
+      pressTimer = setTimeout(enableSelectionMode, 800);
+    });
+    card.addEventListener('mouseup', () => clearTimeout(pressTimer));
+    card.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+
+    // Book click
+    card.querySelector('.book-btn').addEventListener('click', () => {
+      if (selectionMode) {
+        card.classList.toggle('selected');
+        if (card.classList.contains('selected')) {
+          selectedBooks.add(bookID);
+        } else {
+          selectedBooks.delete(bookID);
+        }
+      }
+    });
+
+    // Delete single book click
+    deleteIcon.addEventListener('click', (e) => {
+      e.stopPropagation(); // prevent triggering book button click
+      card.remove();
+      selectedBooks.delete(bookID);
+    });
+  });
+});
+</script>
+
+<script>
+function openAddBookPopup() {
+  const popup = document.getElementById("addBookPopup");
+  popup.style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function closeAddBookPopup() {
+  const popup = document.getElementById("addBookPopup");
+  popup.style.display = "none";
+  document.body.style.overflow = "auto";
+}
+
+async function submitBook() {
+    const title = document.getElementById("bookTitle").value.trim();
+    const author = document.getElementById("bookAuthor").value.trim();
+    const errorEl = document.getElementById("addBookError");
+    const favourite = document.getElementById("bookFavourite").checked;
+    const read = document.getElementById("bookRead").checked;
+    const current_read = document.getElementById("currentRead").checked;
+    errorEl.style.display = "none"; // hide previous errors
+
+    if (!title && !author) {
+        errorEl.textContent = "Please enter a title or author.";
+        errorEl.style.display = "block";
+        return;
+    }
+
+    try {
+        const response = await fetch("/add_book", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, author, favourite, read, current_read})
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+            // Show backend error in popup
+            errorEl.textContent = result.error || "An unknown error occurred";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        closeAddBookPopup();
+        showBookAddedPopup(result.book, true);
+        window.location.reload();
+
+    } catch (err) {
+        errorEl.textContent = "Failed to add book. Please try again.";
+        errorEl.style.display = "block";
+    }
+}
+</script>
+{% endblock %}

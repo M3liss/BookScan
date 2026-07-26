@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="main">
+    <div class="dashboard-container">
+    <div class="dashboard-card" style="position: relative;">
+      <button class="settings-icon-btn" id="settingsToggle" title="Test">⚙️</button>
+      <h2 id="greeting">{{ greeting }}, {{ username }}</h2>
+      <p> Welcome back to your library! </p>
+
+      <div class="stats-row">
+        <div class="stat-box reading">
+          <span class="stat-label">Currently Reading</span>
+          <span class="stat-value">{{ dashboard.currently_reading or "Nothing yet" }}</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Books Read</span>
+          <span class="stat-value">{{ dashboard.read_books if dashboard.read_books is not none else "Nothing yet" }}</span>
+        </div>
+      </div>
+
+      <div class="progress-section" id="progressSection">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" style="width: {{ ratio }}%;"></div>
+        </div>
+        <p>You read <strong>{{ ratio }}%</strong> of your library.</p>
+
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill goal"
+               style="width: {{ (dashboard.reading_goal.completed / dashboard.reading_goal.goal * 100) if dashboard.reading_goal.goal else 0 }}%;">
+          </div>
+        </div>
+        <p>Your reading goal is {{ dashboard.reading_goal.completed }} / {{ dashboard.reading_goal.goal }} books</p>
+
+        <p id="ratio-message">{{ message }}</p>
+      </div>
+
+      <hr class="dashboard-divider">
+
+      <div id="favouritesSection">
+        <button class="collapsible" id="favouritesToggle">Favourites ⭐</button>
+        <div class="submenu" id="favouritesPanel">
+          <div class="books-grid">
+            {% for book in dashboard.favourite_books %}
+            <div class="book-card">
+              <button class="book-btn">
+                <img src="{{ book.image_url }}" alt="{{ book.title }}" style="width:100%; border-radius:8px; margin-bottom:6px;">
+                <strong>{{ book.title }}</strong>
+                {% if book.read %}<span class="read-icon">✔️</span>{% endif %}
+              </button>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div id="librarySection">
+
+      <hr class="dashboard-divider">
+
+
+      <div class="recommendation" id="recommendationSection" style="text-align: left;">
+        <h3>Recommendation:</h3>
+        <p id="recommendation-text">{{ recommendation }}</p>
+      </div>
+
+
+    <div class="popup-overlay" id="settingsPopup">
+      <div class="popup-box form-card">
+        <h2>⚙️ Dashboard Settings</h2>
+        <label><input type="checkbox" class="settings-check" data-target="progressSection" checked> Show Progress Bars</label><br>
+        <label><input type="checkbox" class="settings-check" data-target="favouritesSection" checked> Show Favourites</label><br>
+        <label><input type="checkbox" class="settings-check" data-target="recommendationSection" checked> Show Recommendation</label>
+
+    <form method="POST" action="/set_goal">
+      <input type="text" name="goal" placeholder="How many books do you want to read?" 
+      required> <button type="submit"> Set Goal! </button>
+    </form>
+
+
+
+        <div class="popup-buttons" style="margin-top: 16px;">
+          <button id="closeSettingsPopup">Close</button>
+        </div>
+      </div>
+    </div>
+
+    </div>
+    <br>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+
+  // --- Collapsible sections (favourites, library, settings) ---
+  function wireCollapsible(toggleId, panelId) {
+    const toggle = document.getElementById(toggleId);
+    const panel = document.getElementById(panelId);
+    if (!toggle || !panel) return; // guard: skip if not on this page
+    toggle.addEventListener("click", function() {
+      toggle.classList.toggle("active");
+      panel.classList.toggle("open");
+    });
+  }
+  wireCollapsible("favouritesToggle", "favouritesPanel");
+// --- Settings popup ---
+const settingsBtn = document.getElementById("settingsToggle");
+const settingsPopup = document.getElementById("settingsPopup");
+const closeBtn = document.getElementById("closeSettingsPopup");
+
+if (settingsBtn && settingsPopup) {
+  settingsBtn.addEventListener("click", function() {
+    settingsPopup.classList.add("visible");
+  });
+  closeBtn.addEventListener("click", function() {
+    settingsPopup.classList.remove("visible");
+  });
+  settingsPopup.addEventListener("click", function(e) {
+    if (e.target === settingsPopup) settingsPopup.classList.remove("visible"); // click outside box
+  });
+}  // --- Settings: show/hide sections, persisted in localStorage ---
+  document.querySelectorAll(".settings-check").forEach(function(checkbox) {
+    const target = document.getElementById(checkbox.dataset.target);
+    if (!target) return;
+
+    const saved = localStorage.getItem("dash_" + checkbox.dataset.target);
+    if (saved !== null) {
+      checkbox.checked = saved === "true";
+    }
+    target.classList.toggle("hidden", !checkbox.checked);
+
+    checkbox.addEventListener("change", function() {
+      target.classList.toggle("hidden", !checkbox.checked);
+      localStorage.setItem("dash_" + checkbox.dataset.target, checkbox.checked);
+    });
+  });
+
+  // --- Periodic dashboard refresh ---
+  function getRandomInterval() {
+    return Math.floor(Math.random() * (25000 - 10000 + 1)) + 10000;
+  }
+
+  function updateMessage() {
+    fetch("/new_message")
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById("ratio-message").textContent = data.message;
+        document.getElementById("recommendation-text").textContent = data.recommendation;
+        document.getElementById("greeting").textContent = data.greeting + ", {{ username }}!";
+      })
+      .catch(err => console.error("Error updating message:", err))
+      .finally(() => {
+        setTimeout(updateMessage, getRandomInterval());
+      });
+  }
+
+  setTimeout(updateMessage, getRandomInterval());
+});
+</script>
+{% endblock %}

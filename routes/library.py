@@ -1,0 +1,340 @@
+import io
+import os
+import tempfile
+
+import cv2
+import numpy as np
+import qrcode
+from flask import (Blueprint, jsonify, render_template, request, redirect,
+                    url_for, session, send_file)
+from werkzeug.utils import secure_filename
+
+from routes.utils import (login_required, get_database,
+                           generate_mobile_login_token,
+                           verify_mobile_login_token)
+from services.lookup import search_isbn, check_webcam, search_author, search_title
+from services.isbn_check import scan_isbn_from_image
+
+library_bp = Blueprint("library", __name__)
+
+LAN_IP = "192.168.2.105"  # <-- replace with your actual IPv4 address
+PORT = 5000
+
+def _process_scan_upload(file_storage):
+    """Save an uploaded image, scan it for an ISBN, look up the book, and
+    add it to the library.
+
+    Returns (book_dict, error_message) - exactly one of the two is None.
+    """
+    if file_storage is None or file_storage.filename == "":
+        return None, "No file uploaded"
+
+    filename = secure_filename(file_storage.filename)
+    ext = os.path.splitext(filename)[1] or ".jpg"
+    # Use a unique temp filename instead of the original name so that two
+    # simultaneous scans (e.g. two phones) can never collide/overwrite
+    # each other's file on disk.
+    fd, path = tempfile.mkstemp(prefix="scan_", suffix=ext, dir="static")
+    os.close(fd)
+    file_storage.save(path)
+
+    try:
+        image = cv2.imread(path)
+        if image is None:
+            return None, "Could not read image"
+
+        isbn = scan_isbn_from_image(image)
+        if not isbn:
+            return None, "No ISBN found"
+
+        book = search_isbn(isbn)
+        if not book:
+            return None, "Book not found"
+
+        db = get_database()
+        db.add_book(
+            book["isbn"], book["title"], book["author"],
+            book.get("genre", "Unknown"), False, False, False,
+        )
+        return book, None
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+
+@library_bp.route("/library")
+@login_required
+def library():
+    db = get_database()
+    books = db.get_all_books()
+    return render_template("library.html", books=books, reading_goal=db.get_reading_goal())
+
+
+@library_bp.route("/scan", methods=["POST"])
+@login_required
+def scan():
+    book, error = _process_scan_upload(request.files.get("file"))
+    if error:
+        status = 400 if error == "No file uploaded" else 404
+        return error, status
+    return redirect(url_for("library.library"))
+
+
+@library_bp.route("/add_webcam")
+@login_required
+def add_by_webcam():
+    db = get_database()
+    try:
+        isbn, title, author = check_webcam()
+    except Exception as e:
+        return f"Could not scan book: {e}", 400
+    if not isbn:
+        return "No ISBN found", 404
+    db.add_book(isbn, "", "", "", False, False)
+    return redirect(url_for("library.library"))
+
+
+@library_bp.route("/add_book", methods=["POST"])
+@login_required
+def add_book():
+    db = get_database()
+    data = request.json
+    title = data.get("title", "").strip()
+    author = data.get("author", "").strip()
+    favourite = data.get("favourite", False)
+    read = data.get("read", False)
+    currently_reading = data.get("current_read", False)
+    book = None
+    if title:
+        book = search_title(title=title)
+    elif author:
+        book = search_author(author=author)
+    if not book:
+        return jsonify({"error": "Book not found"}), 404
+    result = db.add_book(book["isbn"], book["title"], book["author"], favourite, read, currently_reading)
+    if not result["success"]:
+        return jsonify({"error": result["error"]}), 400
+    return jsonify({"success": True, "book": book})
+
+
+@library_bp.route("/edit_book", methods=["POST"])
+@login_required
+def edit_book():
+    db = get_database()
+    data = request.json
+    book_id = data.get("id")
+    title = data.get("title", "").strip()
+    author = data.get("author", "").strip()
+    if not book_id:
+        return jsonify({"error": "No book id provided"}), 400
+    if not title:
+        return jsonify({"error": "Title cannot be empty"}), 400
+    result = db.edit_book(int(book_id), title, author)
+    return jsonify(result)
+
+
+@library_bp.route("/delete_book", methods=["POST"])
+@login_required
+def delete_book():
+    db = get_database()
+    data = request.json
+    book_ids = data.get("books", [])
+    if not book_ids:
+        return jsonify({"error": "No books selected"}), 400
+    for book_id in book_ids:
+        db.del_book(int(book_id))
+    return jsonify({"success": True, "deleted": "Books deleted"})
+
+
+@library_bp.route("/mark_favourite", methods=["POST"])
+@login_required
+def mark_favourite():
+    db = get_database()
+    data = request.json
+    book_ids = data.get("books", [])
+    if not book_ids:
+        return jsonify({"error": "No books provided"}), 400
+    for book_id in book_ids:
+        db.toggle_fav(int(book_id))
+    return jsonify({"success": True})
+
+
+@library_bp.route("/mark_read", methods=["POST"])
+@login_required
+def mark_read():
+    db = get_database()
+    data = request.json
+    book_ids = data.get("books", [])
+    print(data)
+    print(book_ids)
+    if not book_ids:
+        return jsonify({"error": "No books provided"}), 400
+    for book_id in book_ids:
+        db.toggle_read(int(book_id))
+    return jsonify({"success": True})
+
+
+@library_bp.route("/mark_currently_reading", methods=["POST"])
+@login_required
+def mark_currently_reading():
+    db = get_database()
+    data = request.json
+    book_id = data.get("book_id")
+    if not book_id:
+        return jsonify({"error": "No book provided"}), 400
+    book_id = int(book_id)
+    current = db.get_currently_reading()
+    if current and current["id"] == book_id:
+        db.clear_currently_reading()
+        return jsonify({"success": True, "currently_reading": None})
+    db.set_currently_reading(book_id)
+    return jsonify({"success": True, "currently_reading": book_id})
+
+
+@library_bp.route("/search_books")
+@login_required
+def search_books():
+    db = get_database()
+    query = request.args.get("q", "")
+    books = db.search_books(query)
+    return jsonify({"books": books})
+
+
+@library_bp.route("/book/<int:book_id>")
+@login_required
+def book_details(book_id):
+    db = get_database()
+    book = db.get_book(book_id)
+    if not book:
+        return jsonify({"error": "Book not found"}), 404
+    return jsonify(book)
+
+
+@library_bp.route("/reading_goal", methods=["GET", "POST"])
+@login_required
+def reading_goal():
+    db = get_database()
+    if request.method == "GET":
+        return jsonify({"goal": db.get_reading_goal()})
+    data = request.json
+    goal = int(data.get("goal", 20))
+    db.set_reading_goal(goal)
+    return jsonify({"success": True, "goal": goal})
+
+
+@library_bp.route("/privacy")
+@login_required
+def privacy():
+    db = get_database()
+    return jsonify({
+        "sharing_enabled": db.get_setting("sharing_enabled"),
+        "recommendations_enabled": db.get_setting("recommendations_enabled"),
+    })
+
+
+@library_bp.route("/health")
+def health():
+    return jsonify({"status": "online", "service": "BookScan"})
+
+
+@library_bp.route("/settings", methods=["GET"])
+@login_required
+def settings():
+    db = get_database()
+    return jsonify({
+        "reading_goal": db.get_setting("reading_goal"),
+        "sharing_enabled": bool(db.get_setting("sharing_enabled")),
+        "recommendations_enabled": bool(db.get_setting("recommendations_enabled")),
+        "tailscale_enabled": bool(db.get_setting("tailscale_enabled")),
+    })
+
+
+# ---------------------------------------------------------------------------
+# QR login + mobile scanning
+#
+# Flow:
+#   1. User is already logged in on desktop, visits /mobile_qr.
+#   2. That page embeds a short-lived signed token in a URL to /mobile_scan
+#      and renders it as a QR code.
+#   3. Phone scans the QR -> GET /mobile_scan?token=... -> token is verified
+#      and the phone's session is logged in -> redirected to the clean
+#      /mobile_scan URL.
+#   4. From then on the phone can POST images to /mobile_scan (or use
+#      /mobile_camera_scan for the in-page camera capture flow) using its
+#      own session, same as any other logged-in request.
+#
+# Important: /mobile_scan can NOT have @login_required on it, because the
+# whole point is that the phone isn't logged in yet when it first hits this
+# route with a token. Auth is instead checked manually inside the function.
+# ---------------------------------------------------------------------------
+@library_bp.route("/mobile_qr")
+@login_required
+def mobile_qr():
+    # Uses the hardcoded LAN_IP so the QR points somewhere the phone can
+    # actually reach, instead of localhost/127.0.0.1 (which only works
+    # from the same machine).
+    token = generate_mobile_login_token(session["username"])
+    path = url_for("library.mobile_scan", token=token)
+    url = f"http://{LAN_IP}:{PORT}{path}"
+
+    qr = qrcode.make(url)
+    img = io.BytesIO()
+    qr.save(img, "PNG")
+    img.seek(0)
+    return send_file(img, mimetype="image/png")
+
+
+@library_bp.route("/mobile_scan", methods=["GET", "POST"])
+def mobile_scan():
+    if request.method == "GET":
+        token = request.args.get("token")
+        if token:
+            username = verify_mobile_login_token(token)
+            if not username:
+                return "<h2>This QR code has expired. Refresh the library page and scan a new one.</h2>", 400
+            session.clear()
+            session["logged_in"] = True
+            session["username"] = username
+            # Redirect to the clean URL so the token isn't sitting in the
+            # phone's browser history/URL bar.
+            return redirect(url_for("library.mobile_scan"))
+
+        if not session.get("logged_in"):
+            return "<h2>Please scan the QR code from the library page to sign in.</h2>", 401
+
+        return render_template("mobile_scan.html")
+
+    # POST: uploading a scanned image
+    if not session.get("logged_in"):
+        return jsonify({"error": "Not authenticated"}), 401
+
+    book, error = _process_scan_upload(request.files.get("file"))
+    if error:
+        status = 400 if error == "No file uploaded" else 404
+        return jsonify({"success": False, "error": error}), status
+    return jsonify({"success": True, "book": book})
+
+
+@library_bp.route("/mobile_scan_photo")
+@login_required
+def mobile_scan_photo():
+    # Fallback for phones/browsers that can't do live camera scanning
+    # (e.g. no secure context). Reuses the same POST /mobile_scan endpoint
+    # above - just a single take-a-photo-and-upload flow instead of a
+    # continuous live feed.
+    return render_template("mobile_scan_photo.html")
+
+
+@library_bp.route("/mobile_camera_scan", methods=["POST"])
+@login_required
+def mobile_camera_scan():
+    # Fixed: original code referenced `np` without importing numpy, so this
+    # route would have raised a NameError on every call.
+    file = request.files.get("image")
+    if file is None:
+        return jsonify({"found": False, "error": "No image provided"}), 400
+
+    book, error = _process_scan_upload(file)
+    if error:
+        return jsonify({"found": False, "error": error})
+    return jsonify({"found": True, "book": book})

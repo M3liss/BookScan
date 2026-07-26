@@ -1,0 +1,13 @@
+services:
+
+  bookscan:
+    build: .
+    container_name: bookscan
+    ports:
+      - "5000:5000"
+
+    volumes:
+      - ./database:/app/database
+      - ./static:/app/static
+
+    restart: unless-stopped

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}BookScan{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>📚 BookScan</h1>
+</header>
+<div class="container">
+<div class="sidebar" id="sidebar">
+    <button class="menu-btn" onclick="toggleSidebar()"> ☰ </button>
+    <div class="menu-items">
+        <div class="bottom">
+            <button onclick="location.href='/dashboard'"> Dashboard </button>
+            <button onclick="location.href='/library'"> Library </button>
+            <button onclick="location.href='/account'"> Account </button>
+            <button onclick="location.href='/logout'"> Logout </button>
+        </div>
+    </div>
+</div>
+
+{% block content %}
+{% endblock %}
+
+</div>
+
+<!-- Reusable popup, shared by every page that extends base.html.
+     Call showPopup("<div>...</div>") from any page's JS to open it with
+     whatever content you want, and closePopup() to dismiss it. -->
+<div class="popup-overlay" id="popupOverlay">
+  <div class="popup-box form-card" id="popupBox">
+  </div>
+</div>
+
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        sidebar.classList.toggle("expanded");
+    }
+
+    function showPopup(html) {
+        document.getElementById("popupBox").innerHTML = html;
+        document.getElementById("popupOverlay").classList.add("visible");
+    }
+
+    function closePopup() {
+        document.getElementById("popupOverlay").classList.remove("visible");
+    }
+
+    // Clicking the dark backdrop (not the card itself) closes the popup
+    document.getElementById("popupOverlay").addEventListener("click", (e) => {
+        if (e.target.id === "popupOverlay") closePopup();
+    });
+
+    // --- Ready-made popup content -------------------------------------
+
+    // Shows the "scan on phone" QR code. Refreshes it every 4 minutes so
+    // it never goes stale while the popup is left open (tokens expire
+    // after 5 minutes).
+    let qrRefreshTimer = null;
+    function openQrPopup() {
+        const qrUrl = "{{ url_for('library.mobile_qr') }}";
+        showPopup(`
+            <h2>📱 Scan with your phone</h2>
+            <p>Open your phone's camera and point it at this code.</p>
+            <img id="qrImage" src="${qrUrl}?t=${Date.now()}"
+                 alt="QR code to log in on your phone"
+                 style="width:220px;height:220px;border-radius:8px;">
+            <p style="color:#777;font-size:0.85em;">
+                Expires after 5 minutes — refreshes automatically.
+            </p>
+            <button onclick="closePopup()">Done</button>
+        `);
+        if (qrRefreshTimer) clearInterval(qrRefreshTimer);
+        qrRefreshTimer = setInterval(() => {
+            const img = document.getElementById("qrImage");
+            if (img) img.src = `${qrUrl}?t=${Date.now()}`;
+        }, 4 * 60 * 1000);
+    }
+
+    // Call this with the book object returned from /add_book, /scan,
+    // /mobile_scan, etc. whenever a book is successfully added.
+    // Pass reloadOnClose = true if the calling page needs to refresh
+    // (e.g. to show the new book card) once the popup is dismissed.
+    function showBookAddedPopup(book, reloadOnClose = false) {
+        showPopup(`
+            <h2>✅ Book added!</h2>
+            <p><b>${book.title}</b></p>
+            <p>${book.author}</p>
+            <button id="bookAddedCloseBtn">Nice</button>
+        `);
+        document.getElementById("bookAddedCloseBtn").onclick = () => {
+            closePopup();
+            if (reloadOnClose) location.reload();
+        };
+    }
+</script>
+{% block scripts %}
+{% endblock %}
+</body>
+</html>

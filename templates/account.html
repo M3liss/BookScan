@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="main">
+<div class="dashboard-container">
+<div class="form-card">
+<h2>
+Account Settings
+</h2>
+<p>
+Logged in as: <strong>{{ username }}</strong> </p>
+{% if error %}
+  <p class="error"> {{ error }} </p>
+{% endif %}
+
+{% if message %}
+  <p class="success"> {{ message }} </p>
+{% endif %}
+<hr>
+<h3> Change Password </h3>
+
+<form method="POST" action="/change_password">
+  <input
+  type="password"
+  name="old_password"
+  placeholder="Current password"
+  required
+  >
+  <input
+  type="password"
+  name="new_password"
+  placeholder="New password"
+  required
+  >
+  <button type="submit"> Change Password </button>
+</form>
+<hr>
+<h3> Delete Account </h3>
+
+<button onclick="openDeletePopup()" class="submit"> Delete Account </button>
+
+<div id="addBookPopup" class="popup-overlay">
+  <div class="form-card popup-box">
+  <h3> Are you sure you want to delete your account? </h3>
+  <p> This action cannot be undone. </p>
+  <div class="popup-buttons">
+    <form method="POST" action="/delete_account">
+      <button type="submit"> Yes, delete account </button>
+    </form>
+  <button onclick="closeDeletePopup()"> Cancel </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openDeletePopup() {
+    const popup = document.getElementById("addBookPopup");
+    popup.style.display = "flex";
+    document.body.style.overflow = "hidden";
+}
+function closeDeletePopup() {
+    const popup = document.getElementById("addBookPopup");
+    popup.style.display = "none";
+    document.body.style.overflow = "auto";
+}
+const sidebar = document.getElementById("sidebar");
+sidebar.style.display = "hidden";
+
+</script>
+{% endblock %}
