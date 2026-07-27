@@ -31,9 +31,6 @@ def _process_scan_upload(file_storage):
 
     filename = secure_filename(file_storage.filename)
     ext = os.path.splitext(filename)[1] or ".jpg"
-    # Use a unique temp filename instead of the original name so that two
-    # simultaneous scans (e.g. two phones) can never collide/overwrite
-    # each other's file on disk.
     fd, path = tempfile.mkstemp(prefix="scan_", suffix=ext, dir="static")
     os.close(fd)
     file_storage.save(path)
@@ -221,58 +218,9 @@ def reading_goal():
     db.set_reading_goal(goal)
     return jsonify({"success": True, "goal": goal})
 
-
-@library_bp.route("/privacy")
-@login_required
-def privacy():
-    db = get_database()
-    return jsonify({
-        "sharing_enabled": db.get_setting("sharing_enabled"),
-        "recommendations_enabled": db.get_setting("recommendations_enabled"),
-    })
-
-
-@library_bp.route("/health")
-def health():
-    return jsonify({"status": "online", "service": "BookScan"})
-
-
-@library_bp.route("/settings", methods=["GET"])
-@login_required
-def settings():
-    db = get_database()
-    return jsonify({
-        "reading_goal": db.get_setting("reading_goal"),
-        "sharing_enabled": bool(db.get_setting("sharing_enabled")),
-        "recommendations_enabled": bool(db.get_setting("recommendations_enabled")),
-        "tailscale_enabled": bool(db.get_setting("tailscale_enabled")),
-    })
-
-
-# ---------------------------------------------------------------------------
-# QR login + mobile scanning
-#
-# Flow:
-#   1. User is already logged in on desktop, visits /mobile_qr.
-#   2. That page embeds a short-lived signed token in a URL to /mobile_scan
-#      and renders it as a QR code.
-#   3. Phone scans the QR -> GET /mobile_scan?token=... -> token is verified
-#      and the phone's session is logged in -> redirected to the clean
-#      /mobile_scan URL.
-#   4. From then on the phone can POST images to /mobile_scan (or use
-#      /mobile_camera_scan for the in-page camera capture flow) using its
-#      own session, same as any other logged-in request.
-#
-# Important: /mobile_scan can NOT have @login_required on it, because the
-# whole point is that the phone isn't logged in yet when it first hits this
-# route with a token. Auth is instead checked manually inside the function.
-# ---------------------------------------------------------------------------
 @library_bp.route("/mobile_qr")
 @login_required
 def mobile_qr():
-    # Uses the hardcoded LAN_IP so the QR points somewhere the phone can
-    # actually reach, instead of localhost/127.0.0.1 (which only works
-    # from the same machine).
     token = generate_mobile_login_token(session["username"])
     path = url_for("library.mobile_scan", token=token)
     url = f"http://{LAN_IP}:{PORT}{path}"
@@ -295,8 +243,6 @@ def mobile_scan():
             session.clear()
             session["logged_in"] = True
             session["username"] = username
-            # Redirect to the clean URL so the token isn't sitting in the
-            # phone's browser history/URL bar.
             return redirect(url_for("library.mobile_scan"))
 
         if not session.get("logged_in"):
@@ -318,18 +264,12 @@ def mobile_scan():
 @library_bp.route("/mobile_scan_photo")
 @login_required
 def mobile_scan_photo():
-    # Fallback for phones/browsers that can't do live camera scanning
-    # (e.g. no secure context). Reuses the same POST /mobile_scan endpoint
-    # above - just a single take-a-photo-and-upload flow instead of a
-    # continuous live feed.
     return render_template("mobile_scan_photo.html")
 
 
 @library_bp.route("/mobile_camera_scan", methods=["POST"])
 @login_required
 def mobile_camera_scan():
-    # Fixed: original code referenced `np` without importing numpy, so this
-    # route would have raised a NameError on every call.
     file = request.files.get("image")
     if file is None:
         return jsonify({"found": False, "error": "No image provided"}), 400

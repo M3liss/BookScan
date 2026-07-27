@@ -1,6 +1,6 @@
 from databases.user_database import UserDatabase
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
-from routes.utils import login_required
+from routes.utils import login_required, get_database
 
 account_bp = Blueprint("account", __name__)
 users = UserDatabase("users.db")
@@ -32,3 +32,30 @@ def delete_account():
     users.delete_user(username)
     session.clear()
     return redirect(url_for("auth.login"))
+
+
+@account_bp.route("/privacy")
+@login_required
+def privacy():
+    db = get_database()
+    return jsonify({
+        "sharing_enabled": db.get_setting("sharing_enabled"),
+        "recommendations_enabled": db.get_setting("recommendations_enabled"),
+    })
+
+
+@account_bp.route("/health")
+def health():
+    return jsonify({"status": "online", "service": "BookScan"})
+
+
+@account_bp.route("/settings", methods=["GET"])
+@login_required
+def settings():
+    db = get_database()
+    return jsonify({
+        "reading_goal": db.get_setting("reading_goal"),
+        "sharing_enabled": bool(db.get_setting("sharing_enabled")),
+        "recommendations_enabled": bool(db.get_setting("recommendations_enabled")),
+        "tailscale_enabled": bool(db.get_setting("tailscale_enabled")),
+    })
