@@ -1,24 +1,19 @@
-from databases.user_database import UserDatabase
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
-
+from routes.utils import users
 auth_bp = Blueprint("auth", __name__)
-
-users = UserDatabase("users.db")
 
 @auth_bp.route("/", methods=["GET", "POST"])
 def login():
     if session.get("logged_in"):
         return redirect(url_for("dashboard.dashboard"))
-
     error = None
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-
-        if users.verify_user(username, password):
+        if users.login_user(username, password):
             session.clear()
             session["logged_in"] = True
-            session["username"] = username
+            session["user_id"] = users.get_user_id(username)
             return redirect(url_for("dashboard.dashboard"))
         else:
             error = "Invalid username or password"
@@ -33,14 +28,12 @@ def signup():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-
-        #TODO: add password methodology for the error messages to be shown
-        if users.add_user(username, password):
+        if not users.add_user(username, password):
+            error = "Username already exists"
+        else:
             session["username"] = username
             session["logged_in"] = True
             return redirect(url_for("dashboard.dashboard"))
-        else:
-            error = "Username already exists"
 
     return render_template("signup.html", error=error)
 
@@ -59,7 +52,6 @@ def whoami():
 
     return jsonify({
         "logged_in": True,
-        "username": session["username"],
-        "role": users.get_role(session["username"])
+        "user_id": session["user_id"],
+        "role": users.get_role(session["user_id"])
     })
-

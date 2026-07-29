@@ -1,16 +1,18 @@
 import sqlite3
+import os
 
 class BookDatabase:
-    def __init__(self, path):
-        self.path = path
-        self.create_database()
+    def __init__(self, path, user_id):
+        user_id = int(user_id)
+        self.path = os.path.join(path, f"books_{user_id}.db")
+        self.create_database(user_id)
 
     def _get_connection(self):
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         return conn
 
-    def create_database(self):
+    def create_database(self, userid):
         conn = self._get_connection()
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS books (
@@ -27,18 +29,17 @@ class BookDatabase:
         c.execute('''
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY,
+            userid INTEGER NOT NULL,
             reading_goal INTEGER DEFAULT 20,
             sharing_enabled INTEGER DEFAULT 1,
             recommendations_enabled INTEGER DEFAULT 1,
-            tailscale_enabled INTEGER DEFAULT 1
+            tailscale_enabled INTEGER DEFAULT 1,
         )
         ''')
-        c.execute('''
-                INSERT OR IGNORE INTO settings
-                    (id, reading_goal, sharing_enabled, recommendations_enabled, tailscale_enabled)
+        c.execute('''INSERT OR IGNORE INTO settings
+                    (id, userid, reading_goal, sharing_enabled, recommendations_enabled, tailscale_enabled)
                     VALUES
-                    (1,20,1,1,1)''')
-
+                    (1,?,20,1,1,1)''', (userid,))
         conn.commit()
         conn.close()
 
@@ -285,15 +286,6 @@ class BookDatabase:
     def get_reading_goal(self):
         conn = self._get_connection()
         row = conn.execute("SELECT reading_goal FROM settings WHERE id=1").fetchone()
-        rows = conn.execute(
-        "SELECT * FROM settings"
-        ).fetchall()
-
-        for row in rows:
-            print("helooo")
-            print(dict(row))
-
-        conn.close()
         conn.close()
         return row["reading_goal"] if row else 20
 
@@ -304,17 +296,8 @@ class BookDatabase:
         conn.close()
 
     def get_setting(self, setting):
-
         conn = self._get_connection()
-
-        row = conn.execute(
-            f"""
-            SELECT {setting}
-            FROM settings
-            WHERE id=1
-            """
-        ).fetchone()
-
+        row = conn.execute(f""" SELECT {setting} FROM settings WHERE id=1 """).fetchone()
         conn.close()
 
         return row[setting] if row else None
@@ -331,14 +314,15 @@ class BookDatabase:
             )
         conn = self._get_connection()
         conn.execute(
-            f"""
-            UPDATE settings
-            SET {setting}=?
-            WHERE id=1
-            """,
-            (value,)
-        )
+            f""" UPDATE settings SET {setting}=? WHERE id=1 """, (value,))
 
 
         conn.commit()
         conn.close()
+
+    def get_foreign_key(self):
+        conn = self._get_connection()
+        row = conn.execute(f""" SELECT userID FROM settings WHERE id=1 """).fetchone()
+        conn.close()
+
+        return row["userid"] if row else None

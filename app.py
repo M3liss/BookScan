@@ -1,5 +1,5 @@
 from flask import Flask
-import secrets
+import os
 
 from routes.auth import auth_bp
 from routes.account import account_bp
@@ -12,7 +12,7 @@ def create_app():
 
     app = Flask(__name__)
 
-    app.secret_key = "Now_same"
+    app.secret_key = os.environ.get("SECRET_KEY")
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(account_bp)

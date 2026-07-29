@@ -16,20 +16,29 @@ def change_password():
         return redirect(url_for("auth.login"))
     old_password = request.form["old_password"]
     new_password = request.form["new_password"]
-    username = session["username"]
-    if not users.verify_user(username, old_password):
+    if not users.change_password(session["user_id"],old_password, new_password):
         return render_template("account.html", error="Old password incorrect", username=session.get("username"))
-    #TODO: add functionality to show if the new password is not big enough / the same as before
-    users.change_password(username,new_password)
+
     return render_template("account.html", message="Password changed successfully", username=session.get("username"))
+
+@account_bp.route("/change_username", methods=["POST"])
+def change_username():
+    if not session.get("logged_in"):
+        return redirect(url_for("auth.login"))
+    new_username = request.form["new_username"]
+    if not users.change_username(session["user_id"], new_username):
+        return render_template("account.html", error="Old password incorrect", username=session.get("username"))
+
+    return render_template("account.html", message="Password changed successfully", username=session.get("username"))
+
 
 
 @account_bp.route("/delete_account", methods=["POST"])
 def delete_account():
     if not session.get("logged_in"):
         return redirect(url_for("auth.login"))
-    username = session["username"]
-    users.delete_user(username)
+    user_id = session["user_id"]
+    users.delete_user(user_id)
     session.clear()
     return redirect(url_for("auth.login"))
 
