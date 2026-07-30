@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
-from routes.utils import users
+from routes.utils import users, start_session, login_required
 auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/", methods=["GET", "POST"])
@@ -11,9 +11,7 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
         if users.login_user(username, password):
-            session.clear()
-            session["logged_in"] = True
-            session["user_id"] = users.get_user_id(username)
+            start_session(users.get_user_id(username), username)
             return redirect(url_for("dashboard.dashboard"))
         else:
             error = "Invalid username or password"
@@ -22,7 +20,9 @@ def login():
 
 @auth_bp.route("/signup", methods=["GET", "POST"])
 def signup():
-    if session.get("logged_in"):
+    session.clear()
+    if session.get("logged_in") and not session.get("user_id"):
+        print("this is why")
         return redirect(url_for("dashboard.dashboard"))
     error = None
     if request.method == "POST":
@@ -31,8 +31,8 @@ def signup():
         if not users.add_user(username, password):
             error = "Username already exists"
         else:
-            session["username"] = username
-            session["logged_in"] = True
+            print(users.get_user_id(username))
+            start_session(users.get_user_id(username), username)
             return redirect(url_for("dashboard.dashboard"))
 
     return render_template("signup.html", error=error)

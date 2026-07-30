@@ -1,17 +1,11 @@
 import io
 import os
 import tempfile
-
-import cv2
-import numpy as np
 import qrcode
-from flask import (Blueprint, jsonify, render_template, request, redirect,
-                    url_for, session, send_file)
+from flask import (Blueprint, jsonify, render_template, request, redirect, url_for, session, send_file)
 from werkzeug.utils import secure_filename
 
-from routes.utils import (login_required, get_database,
-                           generate_mobile_login_token,
-                           verify_mobile_login_token)
+from routes.utils import (login_required, get_database,generate_mobile_login_token, verify_mobile_login_token)
 from services.lookup import search_isbn, check_webcam, search_author, search_title
 from services.isbn_check import scan_isbn_from_image
 
@@ -31,28 +25,19 @@ def _process_scan_upload(file_storage):
 
     filename = secure_filename(file_storage.filename)
     ext = os.path.splitext(filename)[1] or ".jpg"
-    fd, path = tempfile.mkstemp(prefix="scan_", suffix=ext, dir="static")
+    fd, path = tempfile.mkstemp(prefix="scan_", suffix=ext)
     os.close(fd)
     file_storage.save(path)
 
     try:
-        image = cv2.imread(path)
-        if image is None:
-            return None, "Could not read image"
-
-        isbn = scan_isbn_from_image(image)
+        isbn = scan_isbn_from_image(path)
         if not isbn:
             return None, "No ISBN found"
-
         book = search_isbn(isbn)
         if not book:
             return None, "Book not found"
-
         db = get_database()
-        db.add_book(
-            book["isbn"], book["title"], book["author"],
-            book.get("genre", "Unknown"), False, False, False,
-        )
+        db.add_book(book["isbn"], book["title"], book["author"], book.get("genre", "Unknown"), "", "", "")
         return book, None
     finally:
         if os.path.exists(path):
@@ -87,7 +72,7 @@ def add_by_webcam():
         return f"Could not scan book: {e}", 400
     if not isbn:
         return "No ISBN found", 404
-    db.add_book(isbn, "", "", "", False, False)
+    db.add_book(isbn, "", "", "", False, False, False)
     return redirect(url_for("library.library"))
 
 
@@ -108,7 +93,7 @@ def add_book():
         book = search_author(author=author)
     if not book:
         return jsonify({"error": "Book not found"}), 404
-    result = db.add_book(book["isbn"], book["title"], book["author"], favourite, read, currently_reading)
+    result = db.add_book(book["isbn"], book["title"], book["author"], book.get("genre", "Unknown"), favourite, read, currently_reading)
     if not result["success"]:
         return jsonify({"error": result["error"]}), 400
     return jsonify({"success": True, "book": book})
@@ -162,8 +147,6 @@ def mark_read():
     db = get_database()
     data = request.json
     book_ids = data.get("books", [])
-    print(data)
-    print(book_ids)
     if not book_ids:
         return jsonify({"error": "No books provided"}), 400
     for book_id in book_ids:

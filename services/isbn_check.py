@@ -3,56 +3,38 @@ from pyzbar.pyzbar import decode
 from PIL import Image
 import time
 
-def scan_isbn_from_image(image):
+def scan_isbn_from_image(path):
     """Scans an image for an ISBN barcode and returns the detected ISBN."""
-    # Convert OpenCV image to PIL format
-    img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    
-    # Decode the barcode(s) from the image
-    decoded_objects = decode(img)
+    image = cv2.imread(path)
+    if image is None:
+        return None, "Could not read image"
 
-    # Iterate over detected barcodes
+    img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    decoded_objects = decode(img)
     for obj in decoded_objects:
-        # Extract the data (barcode value), assuming it's an ISBN
         isbn = obj.data.decode('utf-8')
         print(f"Found ISBN: {isbn}")
         return isbn
     return None
 
-def scan_isbn_from_webcam():
-    """Continuously captures frames from webcam and scans for an ISBN."""
+
+def scan_isbn_from_webcam(timeout_seconds=15):
     cap = cv2.VideoCapture(0)
-    print("Scanning for ISBN... Press 'q' to exit.")
+    if not cap.isOpened():
+        return None
+
     start_time = time.time()
     isbn = None
+    try:
+        while time.time() - start_time < timeout_seconds:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame = cv2.flip(frame, 1)
+            isbn = scan_isbn_from_image(frame)
+            if isbn:
+                break
+    finally:
+        cap.release()
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Failed to grab frame. Exiting...")
-            break
-        
-        frame = cv2.flip(frame, 1)  # Flip horizontally (mirror effect)
-
-
-        # Call the existing function to process the frame
-        isbn = scan_isbn_from_image(frame)
-
-        # Draw a visual cue if an ISBN is found
-        if isbn:
-            cv2.imshow("ISBN Scanner", frame)
-            cv2.waitKey(1000)  # Pause for 2 seconds before resuming
-            break
-
-        # Display the video feed
-        cv2.imshow("ISBN Scanner", frame)
-
-        # Exit on pressing 'q'
-        end_time = time.time()
-        if cv2.waitKey(1) & 0xFF == ord('q') or end_time - start_time > 100:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
     return isbn
-

@@ -2,18 +2,25 @@
 import sqlite3
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
-from routes.utils import DATABASEFOLDER
-from database import BookDatabase
+from databases.database import BookDatabase
+
+DATABASEFOLDER = "databases"
+
 class UserDatabase:
 
     ROLE_USER = "user"
     ROLE_ADMIN = "admin"
 
-    def __init__(self, path="/databases/users.db"):
+    def __init__(self, path=f"/{DATABASEFOLDER}/users.db"):
+        print("hello?????")
+        print(path)
+        if path is None:
+            path = os.path.join(DATABASEFOLDER, "users.db")
         self.path = path
-        self._create_table()
 
     def _get_connection(self):
+        print("test")
+        print(self.path)
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -75,8 +82,7 @@ class UserDatabase:
             )
             conn.commit()
             conn.close()
-            BookDatabase(DATABASEFOLDER, user_id)
-
+            BookDatabase(DATABASEFOLDER, cursor.lastrowid)
             return cursor.lastrowid
         except sqlite3.IntegrityError as e:
             conn.rollback()
@@ -146,7 +152,7 @@ class UserDatabase:
         conn.close()
         return True
 
-    def change_username(self, user_id, username, new_username):
+    def change_username(self, user_id, new_username):
         new_username = self._validate_username(new_username)
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -189,14 +195,7 @@ class UserDatabase:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            SELECT id
-            FROM users
-            WHERE username=?
-            """,
-            (username,)
-        )
+        cursor.execute("""SELECT id FROM users WHERE username=?""", (username,))
 
         row = cursor.fetchone()
         conn.close()

@@ -33,7 +33,7 @@ class BookDatabase:
             reading_goal INTEGER DEFAULT 20,
             sharing_enabled INTEGER DEFAULT 1,
             recommendations_enabled INTEGER DEFAULT 1,
-            tailscale_enabled INTEGER DEFAULT 1,
+            tailscale_enabled INTEGER DEFAULT 1
         )
         ''')
         c.execute('''INSERT OR IGNORE INTO settings

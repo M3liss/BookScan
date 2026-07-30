@@ -11,7 +11,7 @@ MOBILE_LOGIN_SALT = "mobile-login"
 MOBILE_LOGIN_MAX_AGE = 300
 DATABASEFOLDER = "databases"
 
-users = UserDatabase(f"{DATABASEFOLDER}/users.db")
+users = UserDatabase()
 
 def login_required(func):
     @wraps(func)
@@ -33,6 +33,7 @@ def get_database():
     return g.book_db
 
 def init_all():
+    users = UserDatabase()
     os.makedirs(DATABASEFOLDER, exist_ok=True) 
  
 def generate_mobile_login_token(user_id):
@@ -49,3 +50,14 @@ def verify_mobile_login_token(token):
         return data.get("user_id")
     except (BadSignature, SignatureExpired):
         return None
+
+
+def start_session(user_id, username):
+    session.clear()
+    session["logged_in"] = True
+    session["user_id"] = user_id
+    session["username"] = username
+
+def change_username(user_id, username):
+    #TODO
+    return 1

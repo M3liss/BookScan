@@ -1,9 +1,7 @@
-from databases.user_database import UserDatabase
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
-from routes.utils import login_required, get_database
+from routes.utils import login_required, get_database, users
 
 account_bp = Blueprint("account", __name__)
-users = UserDatabase("users.db")
 
 @account_bp.route("/account")
 @login_required
@@ -27,9 +25,10 @@ def change_username():
         return redirect(url_for("auth.login"))
     new_username = request.form["new_username"]
     if not users.change_username(session["user_id"], new_username):
-        return render_template("account.html", error="Old password incorrect", username=session.get("username"))
+        session["username"] = new_username
+        return render_template("account.html", error="Username already taken", username=session.get("username"))
 
-    return render_template("account.html", message="Password changed successfully", username=session.get("username"))
+    return render_template("account.html", message="Username changed successfully", username=session.get("username"))
 
 
 

@@ -1,13 +1,14 @@
 services:
 
-  bookscan:
+bookscan:
     build: .
     container_name: bookscan
     ports:
       - "5000:5000"
-
+    env_file:
+      - .env
     volumes:
-      - ./database:/app/database
+      - ./databases:/app/databases
       - ./static:/app/static
 
     restart: unless-stopped

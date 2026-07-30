@@ -1,4 +1,3 @@
-from databases.user_database import UserDatabase
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
 from routes.utils import login_required, get_database
 from messages import get_ratio_message, get_random_greeting, get_random_recommendation
@@ -55,18 +54,13 @@ def new_message():
 @login_required
 def set_goal():
     db = get_database()
-    new_goal = request.form["goal"]
-    print(new_goal)
-    db.set_reading_goal(new_goal)
+    db.set_reading_goal(int(request.form["goal"]))
     books = db.get_all_books()
     total_books = len(books)
     read_books = [book for book in books if book["read"]]
     favourite_books = [book for book in books if book["favourite"]]
     currently_reading_book = db.get_currently_reading()
     goal = db.get_reading_goal()
-    print(goal)
-
-
     ratio = 0
     if total_books > 0:
         ratio = round(len(read_books) / total_books * 100, 1)
