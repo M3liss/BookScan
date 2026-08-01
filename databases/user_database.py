@@ -11,16 +11,13 @@ class UserDatabase:
     ROLE_USER = "user"
     ROLE_ADMIN = "admin"
 
-    def __init__(self, path=f"/{DATABASEFOLDER}/users.db"):
-        print("hello?????")
-        print(path)
+    def __init__(self, path=f"{DATABASEFOLDER}/users.db"):
         if path is None:
             path = os.path.join(DATABASEFOLDER, "users.db")
         self.path = path
+        self._create_table()
 
     def _get_connection(self):
-        print("test")
-        print(self.path)
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -157,17 +154,7 @@ class UserDatabase:
         conn = self._get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                """
-                UPDATE users
-                SET username=?
-                WHERE id=?
-                """,
-                (
-                    new_username,
-                    user_id
-                )
-            )
+            cursor.execute("""UPDATE users SET username=? WHERE id=?""", (new_username, user_id))
             conn.commit()
             conn.close()
             return True
@@ -186,7 +173,7 @@ class UserDatabase:
         conn.close()
         deleted = cursor.rowcount > 0
         if deleted:
-            book_path = os.path.join(DATABASEFOLDER, f"books_{user_id}.db")
+            book_path = os.path.join(DATABASEFOLDER, f"account_{user_id}.db")
             if os.path.exists(book_path):
                 os.remove(book_path)
         return deleted
@@ -194,10 +181,8 @@ class UserDatabase:
     def get_user_id(self, username):
         conn = self._get_connection()
         cursor = conn.cursor()
-
+        username = self._validate_username(username)
         cursor.execute("""SELECT id FROM users WHERE username=?""", (username,))
-
         row = cursor.fetchone()
         conn.close()
-
         return row["id"] if row else None

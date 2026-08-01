@@ -1,10 +1,11 @@
+import io
 import sqlite3
 import os
 
 class BookDatabase:
     def __init__(self, path, user_id):
         user_id = int(user_id)
-        self.path = os.path.join(path, f"books_{user_id}.db")
+        self.path = os.path.join(path, f"account_{user_id}.db")
         self.create_database(user_id)
 
     def _get_connection(self):
@@ -24,7 +25,11 @@ class BookDatabase:
                     favourite INTEGER DEFAULT 0,
                     image TEXT DEFAULT 'Not found',
                     read INTEGER DEFAULT 0,
-                    currently_reading INTEGER DEFAULT 0
+                    currently_reading INTEGER DEFAULT 0,
+                    bookclub INTEGER DEFAULT 0,
+                    recommended INTEGER DEFAULT 0,
+                    personal_message TEXT DEFAULT '',
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                     )''')
         c.execute('''
         CREATE TABLE IF NOT EXISTS settings (
@@ -295,13 +300,21 @@ class BookDatabase:
         conn.commit()
         conn.close()
 
-    def get_setting(self, setting):
+    def get_setting(self, user_id, setting):
         conn = self._get_connection()
-        row = conn.execute(f""" SELECT {setting} FROM settings WHERE id=1 """).fetchone()
+        row = conn.execute(f"SELECT {setting} FROM settings WHERE id=?",(user_id,),).fetchone()
         conn.close()
 
-        return row[setting] if row else None
-    def set_setting(self, setting, value):
+        if not row: 
+            return None
+
+        value = row[setting]
+        if value is None:
+            return None
+
+        return bool(value)
+    
+    def set_setting(self, user_id, setting, value):
         allowed = [
             "reading_goal",
             "sharing_enabled",
@@ -314,7 +327,7 @@ class BookDatabase:
             )
         conn = self._get_connection()
         conn.execute(
-            f""" UPDATE settings SET {setting}=? WHERE id=1 """, (value,))
+            f""" UPDATE settings SET {setting}=? WHERE id=? """, (value, user_id,))
 
 
         conn.commit()
@@ -322,7 +335,77 @@ class BookDatabase:
 
     def get_foreign_key(self):
         conn = self._get_connection()
-        row = conn.execute(f""" SELECT userID FROM settings WHERE id=1 """).fetchone()
+        row = conn.execute("SELECT userid FROM settings WHERE id=1").fetchone()
         conn.close()
 
         return row["userid"] if row else None
+
+    def import_goodreads(self, file_path="good_reads.csv"):
+        import csv
+
+        def clean_text(value):
+            if value is None:
+                return ""
+            return str(value).strip()
+
+        def get_value(row, *keys):
+            for key in keys:
+                if key in row and clean_text(row[key]):
+                    return clean_text(row[key])
+            return ""
+
+        def normalize_isbn(value):
+            normalized = "".join(char for char in value if char.isalnum())
+            return normalized.upper()
+
+        result = {"imported": 0, "skipped": 0, "errors": []}
+
+        try:
+            if isinstance(file_path, (str, os.PathLike)):
+                stream = open(file_path, newline="", encoding="utf-8-sig")
+                close_stream = True
+            else:
+                upload_stream = getattr(file_path, "stream", file_path)
+                if hasattr(upload_stream, "seek"):
+                    upload_stream.seek(0)
+                upload_stream.seek(0)
+                text_data = upload_stream.read().decode("utf-8-sig")
+                stream = io.StringIO(text_data)
+                close_stream = False
+
+            with stream as csvfile:
+                reader = csv.DictReader(csvfile)
+                if not reader.fieldnames:
+                    result["errors"].append("CSV file is empty")
+                    return result
+
+                for row in reader:
+                    isbn = normalize_isbn(get_value(row, "ISBN", "ISBN13", "isbn", "isbn13", "Book ISBN"))
+                    title = get_value(row, "Title", "title") or "Untitled"
+                    author = get_value(row, "Author", "author") or "Unknown"
+
+                    if not isbn:
+                        result["skipped"] += 1
+                        continue
+
+                    add_result = self.add_book(
+                        isbn=isbn,
+                        title=title,
+                        author=author,
+                        genre="",
+                        favourite=False,
+                        read=True,
+                        current_read=False,
+                    )
+
+                    if add_result.get("success"):
+                        result["imported"] += 1
+                    else:
+                        result["skipped"] += 1
+        except (FileNotFoundError, OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+            result["errors"].append(str(exc))
+
+        if close_stream:
+            stream.close()
+
+        return result

@@ -3,6 +3,7 @@
 <div class="main">
 <div class="dashboard-container">
     <div class="dashboard-card" style="position: relative;">
+      <button class="settings-icon-btn" id="settingsToggle" title="Test">⚙️</button>
         <h2>Your Library</h2>
 
       <p id="addGeneralError" style="color:red; display:none;"></p>
@@ -98,11 +99,72 @@
 
 </div>
 </div>
+
+    <div class="popup-overlay" id="settingsPopup">
+      <div class="popup-box form-card">
+        <h2>⚙️ Library Settings</h2>
+        <hr>
+
+        <label><input type="checkbox" class="show_images-check" data-target="ImagesCheck" checked> Show Book Covers</label><br>
+        <label><input type="checkbox" class="progress-check" data-target="ProgressCheck" checked> Show Bar of Shame</label><br>
+
+        <form method="POST" action="/upload_goodreads" enctype="multipart/form-data">
+          <input type="file" name="goodreads_file"  accept=".csv" required>
+          <span class="info-icon">i
+            <span class="tooltip"> Log into your goodreads account, go to My books and scroll down to export your library. This file can be uploaded here</span>
+          </span>
+          <button type="submit">Upload</button>
+        </form>
+        </p>
+
+
+        <form method="POST" action="/set_goal">
+          <input type="text" name="goal" placeholder="How many books do you want to read?" 
+          required> <button type="submit"> Set Goal! </button>
+        </form>
+        <div class="popup-buttons" style="margin-top: 16px;">
+          <button id="closeSettingsPopup">Close</button>
+        </div>
+      </div>
+    </div>
+
+
 {% endblock %}
 
 {% block scripts %}
 
 <script>
+const settingsBtn = document.getElementById("settingsToggle");
+const settingsPopup = document.getElementById("settingsPopup");
+const closeBtn = document.getElementById("closeSettingsPopup");
+
+if (settingsBtn && settingsPopup) {
+  settingsBtn.addEventListener("click", function() {
+    settingsPopup.classList.add("visible");
+  });
+  closeBtn.addEventListener("click", function() {
+    settingsPopup.classList.remove("visible");
+  });
+  settingsPopup.addEventListener("click", function(e) {
+    if (e.target === settingsPopup) settingsPopup.classList.remove("visible"); // click outside box
+  });
+}  // --- Settings: show/hide sections, persisted in localStorage ---
+  document.querySelectorAll(".settings-check").forEach(function(checkbox) {
+    const target = document.getElementById(checkbox.dataset.target);
+    if (!target) return;
+
+    const saved = localStorage.getItem("dash_" + checkbox.dataset.target);
+    if (saved !== null) {
+      checkbox.checked = saved === "true";
+    }
+    target.classList.toggle("hidden", !checkbox.checked);
+
+    checkbox.addEventListener("change", function() {
+      target.classList.toggle("hidden", !checkbox.checked);
+      localStorage.setItem("dash_" + checkbox.dataset.target, checkbox.checked);
+    });
+  });
+
 let selectionMode = false;
 let pressTimer;
 let selectedBooks = new Set();

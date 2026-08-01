@@ -11,7 +11,7 @@ from services.isbn_check import scan_isbn_from_image
 
 library_bp = Blueprint("library", __name__)
 
-LAN_IP = "192.168.2.105"  # <-- replace with your actual IPv4 address
+LAN_IP = "192.168.2.105"
 PORT = 5000
 
 def _process_scan_upload(file_storage):
@@ -49,7 +49,7 @@ def _process_scan_upload(file_storage):
 def library():
     db = get_database()
     books = db.get_all_books()
-    return render_template("library.html", books=books, reading_goal=db.get_reading_goal())
+    return render_template("library.html", books=books, reading_goal=db.get_read_ratio())
 
 
 @library_bp.route("/scan", methods=["POST"])
@@ -261,3 +261,20 @@ def mobile_camera_scan():
     if error:
         return jsonify({"found": False, "error": error})
     return jsonify({"found": True, "book": book})
+
+
+@library_bp.route("/upload_goodreads", methods=["POST"])
+@login_required
+def import_goodreads():
+    file = request.files.get("goodreads_file") or request.files.get("file")
+    if file is None:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    db = get_database()
+    result = db.import_goodreads(file)
+    if result.get("errors"):
+        return jsonify({"success": False, "error": result["errors"][0], "imported": result["imported"], "skipped": result["skipped"]}), 400
+    return jsonify({"success": True, "imported": result["imported"], "skipped": result["skipped"]})

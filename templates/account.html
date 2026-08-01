@@ -12,11 +12,10 @@ Logged in as: <strong>{{ username }}</strong> </p>
   <p class="error"> {{ error }} </p>
 {% endif %}
 
-{% if message %}
-  <p class="success"> {{ message }} </p>
-{% endif %}
+<p id="page-message" class="success"{% if not message %} style="display:none;"{% endif %}>
+  {% if message %}{{ message }}{% endif %}
+
 <hr>
-<h3> Change Password </h3>
 
 <form method="POST" action="/change_password">
   <input
@@ -33,7 +32,45 @@ Logged in as: <strong>{{ username }}</strong> </p>
   >
   <button type="submit"> Change Password </button>
 </form>
+
+<form method="POST" action="/change_username">
+  <input
+  type="text"
+  name="new_username"
+  placeholder="New username"
+  required
+  >
+  <button type="submit"> Change Username </button>
+</form>
 <hr>
+
+<h3>Privacy Settings</h3>
+
+<form id="privacy-form" method="POST" action="/change_privacy">
+  <div class="privacy-row">
+    <label class="privacy-label">
+      <input type="checkbox" name="sharing_enabled" value="1" {% if sharing_enabled is sameas true %}checked{% endif %}>
+      <span>Enable sharing</span>
+    </label>
+
+    <span class="info-icon">i
+      <span class="tooltip">This enables a connection to my admin account and other accounts in the network. This includes backup to the admin server, as well as sharing your public profile in the Friends section.</span>
+    </span>
+  </div>
+
+  <div class="privacy-row">
+    <label class="privacy-label">
+      <input type="checkbox" name="recommendations_enabled" value="1" {% if recommendations_enabled is sameas true %}checked{% endif %}>
+      <span>Enable recommendations</span>
+    </label>
+
+    <span class="info-icon">i
+      <span class="tooltip">This allows an AI model to give you recommendations. If you do not want any AI content, toggle this off.</span>
+    </span>
+  </div>
+</form>
+<hr>
+
 <h3> Delete Account </h3>
 
 <button onclick="openDeletePopup()" class="submit"> Delete Account </button>
@@ -61,13 +98,52 @@ function openDeletePopup() {
     popup.style.display = "flex";
     document.body.style.overflow = "hidden";
 }
+
 function closeDeletePopup() {
     const popup = document.getElementById("addBookPopup");
     popup.style.display = "none";
     document.body.style.overflow = "auto";
 }
+
 const sidebar = document.getElementById("sidebar");
 sidebar.style.display = "hidden";
 
+document.addEventListener("DOMContentLoaded", function () {
+  const form = document.getElementById("privacy-form");
+  const messageBox = document.getElementById("page-message");
+
+  if (!form || !messageBox) return;
+
+  form.addEventListener("change", async function (event) {
+    if (!event.target.matches('input[type="checkbox"]')) return;
+
+    const formData = new FormData(form);
+
+    try {
+      const response = await fetch(form.action, {
+        method: form.method,
+        body: formData
+      });
+
+      if (response.ok) {
+        messageBox.textContent = "Privacy settings updated";
+        messageBox.className = "success";
+        messageBox.style.display = "block";
+        setTimeout(() => {
+          messageBox.textContent = "";
+          messageBox.style.display = "none";
+        }, 1500);
+      } else {
+        messageBox.textContent = "Failed to update privacy settings";
+        messageBox.className = "error";
+        messageBox.style.display = "block";
+      }
+    } catch (err) {
+      messageBox.textContent = "Error updating privacy settings";
+      messageBox.className = "error";
+      messageBox.style.display = "block";
+    }
+  });
+});
 </script>
 {% endblock %}

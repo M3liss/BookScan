@@ -22,7 +22,6 @@ def login():
 def signup():
     session.clear()
     if session.get("logged_in") and not session.get("user_id"):
-        print("this is why")
         return redirect(url_for("dashboard.dashboard"))
     error = None
     if request.method == "POST":
@@ -31,7 +30,6 @@ def signup():
         if not users.add_user(username, password):
             error = "Username already exists"
         else:
-            print(users.get_user_id(username))
             start_session(users.get_user_id(username), username)
             return redirect(url_for("dashboard.dashboard"))
 

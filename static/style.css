@@ -668,3 +668,58 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
+  .privacy-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+  }
+
+  .privacy-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+  }
+  .privacy-label span {
+    white-space: nowrap;
+  }
+
+  .info-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #eaf3ff;
+    color: #2b6cb0;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: help;
+  }
+
+  .info-icon .tooltip {
+    position: absolute;
+    left: 24px;
+    top: 50%;
+    width: 220px;
+    transform: translateY(-50%);
+    background: #333;
+    color: white;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: wrap;
+    display: none;
+    z-index: 10;
+  }
+
+  .info-icon:hover .tooltip {
+    display: block;
+  }
+
