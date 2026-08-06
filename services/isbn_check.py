@@ -1,20 +1,31 @@
-import cv2
-from pyzbar.pyzbar import decode
-from PIL import Image
+import os
 import time
 
-def scan_isbn_from_image(path):
-    """Scans an image for an ISBN barcode and returns the detected ISBN."""
-    image = cv2.imread(path)
+import cv2
+from PIL import Image
+from pyzbar.pyzbar import decode
+
+
+def scan_isbn_from_image(image_or_path):
+    """Scan an image path or an already-loaded image array for an ISBN barcode."""
+    if image_or_path is None:
+        return None
+
+    if isinstance(image_or_path, (str, os.PathLike)):
+        image = cv2.imread(str(image_or_path))
+    else:
+        image = image_or_path
+
     if image is None:
-        return None, "Could not read image"
+        return None
 
     img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     decoded_objects = decode(img)
     for obj in decoded_objects:
-        isbn = obj.data.decode('utf-8')
+        isbn = obj.data.decode("utf-8")
         print(f"Found ISBN: {isbn}")
         return isbn
+
     return None
 
 
