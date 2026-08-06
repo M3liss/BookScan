@@ -1,4 +1,5 @@
 import os
+import tempfile
 from databases.user_database import UserDatabase
 import unittest
 from databases.database import BookDatabase
@@ -218,6 +219,11 @@ class TestUserBooks(unittest.TestCase):
             result["title"],
             "The Hobbit"
         )
+
+    def test_get_setting_returns_none_for_missing_row(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db = BookDatabase(temp_dir, 1)
+            self.assertIsNone(db.get_setting(999, "reading_goal"))
 
 
     def test_get_book_by_isbn(self):

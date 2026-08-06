@@ -45,8 +45,8 @@ RATIO_MESSAGES = {
         "DAAAAAAAAAAAAAAAAAAAAAAAAAAAAMN"
     ],
     "perfect": [
-        "Do you want me to sign you up to Books Anonymous?"
-        "I never knew you could read THIS WELL"
+        "Do you want me to sign you up to Books Anonymous?",
+        "I never knew you could read THIS WELL",
         "I dont think you'll ever read this. But I love you."
     ]
 }

@@ -302,7 +302,7 @@ class BookDatabase:
 
     def get_setting(self, user_id, setting):
         conn = self._get_connection()
-        row = conn.execute(f"SELECT {setting} FROM settings WHERE id=?",(user_id,),).fetchone()
+        row = conn.execute(f"SELECT {setting} FROM settings WHERE userid=?",(user_id,),).fetchone()
         conn.close()
 
         if not row: 

@@ -71,6 +71,15 @@ Logged in as: <strong>{{ username }}</strong> </p>
 </form>
 <hr>
 
+{% if sharing_status %}
+  <p class="success">Sharing status: {{ sharing_status.status }}</p>
+{% endif %}
+{% if recommendations_status %}
+  <p class="success">Recommendation status: {{ recommendations_status.status }}</p>
+{% endif %}
+
+<p class="info">Backend note: add a Talescale client, a secure backup uploader for your Pi, and a recommendation backend endpoint to make these features fully live.</p>
+
 <h3> Delete Account </h3>
 
 <button onclick="openDeletePopup()" class="submit"> Delete Account </button>
