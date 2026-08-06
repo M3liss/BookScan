@@ -5,14 +5,11 @@ import qrcode
 from flask import (Blueprint, jsonify, render_template, request, redirect, url_for, session, send_file)
 from werkzeug.utils import secure_filename
 
-from routes.utils import (login_required, get_database,generate_mobile_login_token, verify_mobile_login_token)
+from routes.utils import (login_required, get_database, generate_mobile_login_token, verify_mobile_login_token, start_session, build_mobile_scan_url)
 from services.lookup import search_isbn, check_webcam, search_author, search_title
 from services.isbn_check import scan_isbn_from_image
 
 library_bp = Blueprint("library", __name__)
-
-LAN_IP = "192.168.2.105"
-PORT = 5000
 
 def _process_scan_upload(file_storage):
     """Save an uploaded image, scan it for an ISBN, look up the book, and
@@ -37,7 +34,7 @@ def _process_scan_upload(file_storage):
         if not book:
             return None, "Book not found"
         db = get_database()
-        db.add_book(book["isbn"], book["title"], book["author"], book.get("genre", "Unknown"), "", "", "")
+        db.add_book(book["isbn"], book["title"], book["author"], book.get("genre", "Unknown"), False, False, False)
         return book, None
     finally:
         if os.path.exists(path):
@@ -204,9 +201,14 @@ def reading_goal():
 @library_bp.route("/mobile_qr")
 @login_required
 def mobile_qr():
-    token = generate_mobile_login_token(session["username"])
+    user_id = session.get("user_id")
+    username = session.get("username")
+    if not user_id:
+        return "No active session", 400
+
+    token = generate_mobile_login_token(user_id, username)
     path = url_for("library.mobile_scan", token=token)
-    url = f"http://{LAN_IP}:{PORT}{path}"
+    url = build_mobile_scan_url(path, request=request)
 
     qr = qrcode.make(url)
     img = io.BytesIO()
@@ -220,12 +222,16 @@ def mobile_scan():
     if request.method == "GET":
         token = request.args.get("token")
         if token:
-            username = verify_mobile_login_token(token)
-            if not username:
+            login_data = verify_mobile_login_token(token)
+            if not login_data:
                 return "<h2>This QR code has expired. Refresh the library page and scan a new one.</h2>", 400
-            session.clear()
-            session["logged_in"] = True
-            session["username"] = username
+
+            user_id = login_data.get("user_id")
+            username = login_data.get("username")
+            if not user_id or not username:
+                return "<h2>This QR code is invalid.</h2>", 400
+
+            start_session(user_id, username)
             return redirect(url_for("library.mobile_scan"))
 
         if not session.get("logged_in"):
